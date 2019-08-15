@@ -115,6 +115,9 @@ private:
     void collisionResponseFail(ColDetectInfo _cdi);
     ngl::Vec3 edgeFromNum(const size_t _num, std::vector<ngl::Vec3> _vert);
 
+    bool m_writeOutCloth = false;
+    std::string m_filenameDefault = "results/hangTest/msClothHang.";
+
 };
 
 

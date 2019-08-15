@@ -15,8 +15,10 @@ NGLScene::NGLScene()
     setTitle("Cloth Simulation Rachel Strohkorb");
     // Create cloth
     m_cloth = Cloth(1.0f, 720.0f, 720.0f, m_collisionOn);
-    m_cloth.init(20, 20, 0.4f, 0.0f);
+    m_cloth.init(20, 20, 0.4f, 0.0f, true);
     m_cloth.reposToOrigin(5.0f);
+    m_cloth.fixptHang();
+    m_writeOutCloth = true;
     // Create Sphere
     m_sphere = SphereObj(4.0f, 40);
     m_sphere.init();
@@ -33,12 +35,41 @@ void NGLScene::timerEvent(QTimerEvent *_event)
     m_timerId = _event->timerId();
     if(m_cloth.fullClothFixed() == false)
     {
-        m_cloth.update(0.5f);
+        // write cloth to obj
+        if(m_writeOutCloth)
+        {
+            // update count - we want 4 places in the number, so leading 0's matter
+            std::string count;
+            auto numUpdates = m_cloth.numUpdates();
+            if(numUpdates < 10)
+            {
+                count = "000" + std::to_string(numUpdates);
+            }
+            else if(numUpdates < 100)
+            {
+                count = "00" + std::to_string(numUpdates);
+            }
+            else if(numUpdates < 1000)
+            {
+                count = "0" + std::to_string(numUpdates);
+            }
+            else
+            {
+                count = std::to_string(numUpdates);
+            }
+            std::string filename;
+            filename = m_filenameDefault + count + ".obj";
+            m_cloth.writeToObj(filename);
+        }
+        // update cloth
+        m_cloth.update(0.5f, true);
+        // collisions
         if(m_collisionOn)
         {
             collisionResponse(m_sphere.detectCollision(m_cloth.exportTree()));
         }
     }
+    // redraw
     update();
 }
 
@@ -358,7 +389,7 @@ void NGLScene::keyPressEvent(QKeyEvent *_event)
     case Qt::Key_U :
         if(m_cloth.fullClothFixed() == false)
         {
-            m_cloth.update(0.5f);
+            m_cloth.update(0.5f, false);
             if(m_collisionOn)
             {
                 collisionResponse(m_sphere.detectCollision(m_cloth.exportTree()));

@@ -253,7 +253,7 @@ TEST(Cloth,update)
     ngl::Vec3 expected(0.75f, -3.10443f, 0.5f);
     for(size_t i = 0; i < 10; ++i)
     {
-        c.update(0.5f);
+        c.update(0.5f, false);
     }
     EXPECT_TRUE(c.center() == expected);
 }

@@ -10,6 +10,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <ngl/Vec2.h>
 #include "MassPoint.h"
 #include "UnorderedPair.h"
 #include "BVTree.h"
@@ -170,7 +171,7 @@ public:
     /// @brief runs through one step of integrating the cloth over time
     /// @param[in]  _h the time step (in seconds)
     //----------------------------------------------------------------------------------------------------------------------
-    void update(const float _h);
+    void update(const float _h, bool _isWindOn);
     //----------------------------------------------------------------------------------------------------------------------
     /// @brief exports triangle information of this cloth, for purposes of drawing and setting up bounding volumes
     /// @param[out]  o_vertexData the triangle vertex data of this cloth
@@ -190,6 +191,10 @@ public:
     //----------------------------------------------------------------------------------------------------------------------
     void modVertFromTriNum(const size_t _triNum, std::vector<ngl::Vec3> _v);
     //----------------------------------------------------------------------------------------------------------------------
+
+    void writeToObj(std::string _filename);
+    std::vector<ngl::Vec3> calcNormals();
+    size_t numUpdates() const { return m_updateCount; }
 
 private:
     //----------------------------------------------------------------------------------------------------------------------
@@ -253,6 +258,18 @@ private:
     float m_damping = 1.0f;                                                 //!< damping coefficient
     bool m_useDamping = true;                                               //!< whether or not we're using damping
     bool m_collision = false;                                               //!< whether or not collisions are on
+
+    struct Triangle
+    {
+        size_t a;
+        size_t b;
+        size_t c;
+        ngl::Vec2 uva;
+        ngl::Vec2 uvb;
+        ngl::Vec2 uvc;
+    };
+    std::vector<Triangle> m_triangles;
+    size_t m_updateCount = 0;
 };
 
 #endif

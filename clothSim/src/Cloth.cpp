@@ -4,7 +4,9 @@
 
 #include <vector>
 #include <iostream>
+#include <fstream>
 #include <math.h>
+#include <random>
 #include "Cloth.h"
 #include "MassPoint.h"
 
@@ -13,16 +15,20 @@ void Cloth::init(size_t _height, size_t _width, float _restl, float _ycoord, boo
     // in case this is a re-init, clear out all previous member variables
     m_mspts.clear();
     m_springs.clear();
+    m_triangles.clear();
     m_bvtree.clear();
+    m_updateCount = 0;
     // update height and width
     m_height = _height;
     m_width = _width;
-    // determine number of mass points and springs
+    // determine number of mass points, springs, and triangles
     size_t numMasses = _height * _width;
     size_t numSprings = (_width*(_height-1)) + (_height*(_width-1)) + ((_height-1)*(_width-1));
+    size_t numTris = ((_height-1)*(_width-1)) * 2;
     // reserve data
     m_mspts.reserve(numMasses);
     m_springs.reserve(numSprings);
+    m_triangles.reserve(numTris);
     // add in mass points - set position, zero velocity (auto), init forces
     for(size_t i = 0; i < numMasses; ++i)
     {
@@ -67,6 +73,37 @@ void Cloth::init(size_t _height, size_t _width, float _restl, float _ycoord, boo
         if(((i + _width - 1) < numMasses) && ((i % _width) != 0)) //southwest
         {
             createSpring(i, i + _width - 1, sqrt(_restl * _restl * 2));
+        }
+    }
+    // go through all the masspoints and add them to triangles, create UVs
+    float ustart, vstart, ustep, vstep;
+    ustep = 1.0f/(_width - 1);
+    vstep = 1.0f/(_height - 1);
+    ustart = 0.0f;
+    vstart = 1.0f;
+    for(size_t r = 0; r < (_width - 1); ++r)
+    {
+        for(size_t c = 0; c < (_height - 1); ++c)
+        {
+            Triangle t1;
+            Triangle t2;
+            // triangle 1
+            t1.a = (r * _width) + c;
+            t1.b = t1.a + 1;
+            t1.c = t1.a + _width;
+            t1.uva = ngl::Vec2(ustart + (ustep * c), vstart - (vstep * r));
+            t1.uvb = ngl::Vec2(ustart + (ustep * (c + 1)), vstart - (vstep * r));
+            t1.uvc = ngl::Vec2(ustart + (ustep * c), vstart - (vstep * (r + 1)));
+            // triangle 2
+            t2.a = t1.b;
+            t2.b = t1.c + 1;
+            t2.c = t1.c;
+            t2.uva = t1.uvb;
+            t2.uvb = ngl::Vec2(ustart + (ustep * (c + 1)), vstart - (vstep * (r + 1)));
+            t2.uvc = t1.uvc;
+            // add triangles
+            m_triangles.push_back(t1);
+            m_triangles.push_back(t2);
         }
     }
     // Set up BVTree for collision detection
@@ -158,7 +195,7 @@ void Cloth::reposToOrigin(float _ycoord)
     }
 }
 
-void Cloth::update(const float _h)
+void Cloth::update(const float _h, bool _isWindOn)
 {
     // STEP 1 - Compute J matrix values for all springs and masses
     updateSpringJacobians();
@@ -170,9 +207,18 @@ void Cloth::update(const float _h)
 
     // STEP 3 - Calculate force vector for each mass point, mult by Winverse
     std::vector<ngl::Vec3> pforces;
-    ngl::Vec3 fgravity = ngl::Vec3(0.0f, -9.8f, 0.0f) * m_mass;
+    ngl::Vec3 fgravity, externalf;
+    fgravity = ngl::Vec3(0.0f, -9.8f, 0.0f) * m_mass;
     fgravity.normalize();
-    calcPforces(pforces, fgravity, _h);
+    // wind
+    if(_isWindOn && (m_updateCount < 10))
+    {
+        std::default_random_engine gen(m_updateCount);
+        std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+        externalf.m_x = dist(gen);
+        externalf.m_z = dist(gen);
+    }
+    calcPforces(pforces, fgravity + externalf, _h);
     for(size_t i = 0; i < m_mspts.size(); ++i)
     {
         pforces[i] = wiiMatrices[i] * pforces[i];
@@ -205,6 +251,7 @@ void Cloth::update(const float _h)
         // Update all SphereBV centers/radii
         m_bvtree.updateAllBV();
     }
+    ++m_updateCount;
 }
 
 bool Cloth::fullClothFixed() const
@@ -289,6 +336,82 @@ void Cloth::modVertFromTriNum(const size_t _triNum, std::vector<ngl::Vec3> _v)
             m_mspts[id + 1].fixPoint();
         }
     }
+}
+
+void Cloth::writeToObj(std::string _filename)
+{
+    // create file
+    std::ofstream obj;
+    obj.open(_filename, std::ofstream::out | std::ofstream::trunc);
+    obj << "o MSCloth\n";
+    // write out vertex data
+    for(auto m : m_mspts)
+    {
+        obj << "v ";
+        obj << m.pos().m_x << " " << m.pos().m_y << " " << m.pos().m_z <<'\n';
+    }
+    // collect UV coords
+    std::vector<ngl::Vec2> uvs;
+    uvs.resize(m_mspts.size());
+    for(auto t : m_triangles)
+    {
+        uvs[t.a] = t.uva;
+        uvs[t.b] = t.uvb;
+        uvs[t.c] = t.uvc;
+    }
+    // write out UV coords
+    for(auto uv : uvs)
+    {
+        obj << "vt " << uv.m_x << " " << uv.m_y << '\n';
+    }
+    // collect vertex normals
+    auto vNorms = calcNormals();
+    // write out vertex normals
+    for(auto n : vNorms)
+    {
+        obj << "vn ";
+        obj << n.m_x << " " << n.m_y << " " << n.m_z << '\n';
+    }
+    // write out triangles
+    for(auto tr : m_triangles)
+    {
+        obj << "f ";
+        obj << (tr.a + 1) << "/" << (tr.a + 1) << "/" << (tr.a + 1) << " ";
+        obj << (tr.b + 1) << "/" << (tr.b + 1) << "/" << (tr.b + 1) << " ";
+        obj << (tr.c + 1) << "/" << (tr.c + 1) << "/" << (tr.c + 1) << '\n';
+    }
+    // close file
+    obj.close();
+}
+
+std::vector<ngl::Vec3> Cloth::calcNormals()
+{
+    std::vector<ngl::Vec3> vNorms;
+    vNorms.resize(m_mspts.size());
+    // calculate triangle norms, accumulate for each masspoint
+    for(auto t : m_triangles)
+    {
+        ngl::Vec3 triNormal, edge1, edge2;
+        edge1 = m_mspts[t.b].pos() - m_mspts[t.a].pos();
+        edge2 = m_mspts[t.c].pos() - m_mspts[t.a].pos();
+        triNormal = edge1.cross(edge2);
+        if(triNormal != ngl::Vec3(0.0f))
+        {
+            triNormal.normalize();
+        }
+        vNorms[t.a] += triNormal;
+        vNorms[t.b] += triNormal;
+        vNorms[t.c] += triNormal;
+    }
+    // normalize to create the final normals
+    for(auto &vn : vNorms)
+    {
+        if(vn != ngl::Vec3(0.0f))
+        {
+            vn.normalize();
+        }
+    }
+    return vNorms;
 }
 
 void Cloth::createSpring(size_t _ind0, size_t _ind1, float _restl)
