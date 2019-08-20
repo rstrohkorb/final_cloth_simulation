@@ -87,20 +87,20 @@ void Cloth::init(size_t _height, size_t _width, float _restl, float _ycoord, boo
         {
             Triangle t1;
             Triangle t2;
-            // triangle 1
+            // triangle 1 - 0 5 1
             t1.a = (r * _width) + c;
-            t1.b = t1.a + 1;
-            t1.c = t1.a + _width;
+            t1.b = t1.a + _width;
+            t1.c = t1.a + 1;
             t1.uva = ngl::Vec2(ustart + (ustep * c), vstart - (vstep * r));
-            t1.uvb = ngl::Vec2(ustart + (ustep * (c + 1)), vstart - (vstep * r));
-            t1.uvc = ngl::Vec2(ustart + (ustep * c), vstart - (vstep * (r + 1)));
-            // triangle 2
-            t2.a = t1.b;
-            t2.b = t1.c + 1;
-            t2.c = t1.c;
-            t2.uva = t1.uvb;
-            t2.uvb = ngl::Vec2(ustart + (ustep * (c + 1)), vstart - (vstep * (r + 1)));
-            t2.uvc = t1.uvc;
+            t1.uvb = ngl::Vec2(ustart + (ustep * c), vstart - (vstep * (r + 1)));
+            t1.uvc = ngl::Vec2(ustart + (ustep * (c + 1)), vstart - (vstep * r));
+            // triangle 2 - 1 5 6
+            t2.a = t1.c;
+            t2.b = t1.b;
+            t2.c = t2.b + 1;
+            t2.uva = t1.uvc;
+            t2.uvb = t1.uvb;
+            t2.uvc = ngl::Vec2(ustart + (ustep * (c + 1)), vstart - (vstep * (r + 1)));
             // add triangles
             m_triangles.push_back(t1);
             m_triangles.push_back(t2);
@@ -109,9 +109,9 @@ void Cloth::init(size_t _height, size_t _width, float _restl, float _ycoord, boo
     // Set up BVTree for collision detection
     if(m_collision)
     {
-        std::vector<ngl::Vec3> tridata;
-        this->exportTriangles(tridata);
-        m_bvtree.init(tridata);
+        //std::vector<ngl::Vec3> tridata;
+        //this->exportTriangles(tridata);
+        //m_bvtree.init(tridata);
     }
 }
 
@@ -246,7 +246,7 @@ void Cloth::update(const float _h, bool _isWindOn)
     {
         // Update all surfaces
         std::vector<ngl::Vec3> tridata;
-        this->exportTriangles(tridata);
+        //this->exportTriangles(tridata);
         m_bvtree.updateSurfaces(tridata);
         // Update all SphereBV centers/radii
         m_bvtree.updateAllBV();
@@ -266,27 +266,53 @@ bool Cloth::fullClothFixed() const
     return true;
 }
 
-void Cloth::exportTriangles(std::vector<ngl::Vec3> &o_vertexData)
+void Cloth::exportTriangles(std::vector<float> &o_vertexData)
 {
-    o_vertexData.reserve(3 * (m_height - 1) * (2 * (m_width - 1)));
-    //pack data in as triangles, do it by row
-    for(size_t i = 0; i < (m_height - 1); ++i)
+    // determine vertex normals
+    auto vNorms = calcNormals();
+
+    // lambda for adding the data
+    auto listAdd = [&o_vertexData] (ngl::Vec3 vert, ngl::Vec3 norm, ngl::Vec2 uv) -> void
     {
-        for(size_t j = 0; j < (m_width -1); ++j)
-        {
-            // Acquire current id number
-            size_t id = j + (i * m_width);
-            id += m_width;
-            // triangle 1
-            o_vertexData.push_back(m_mspts[id].pos());
-            o_vertexData.push_back(m_mspts[id - m_width].pos());
-            o_vertexData.push_back(m_mspts[id - m_width + 1].pos());
-            // triangle 2
-            o_vertexData.push_back(m_mspts[id].pos());
-            o_vertexData.push_back(m_mspts[id - m_width + 1].pos());
-            o_vertexData.push_back(m_mspts[id + 1].pos());
-        }
+        // position
+        o_vertexData.push_back(vert.m_x);
+        o_vertexData.push_back(vert.m_y);
+        o_vertexData.push_back(vert.m_z);
+        // normal
+        o_vertexData.push_back(norm.m_x);
+        o_vertexData.push_back(norm.m_y);
+        o_vertexData.push_back(norm.m_z);
+        // uv
+        o_vertexData.push_back(uv.m_x);
+        o_vertexData.push_back(uv.m_y);
+    };
+
+    // spit out the triangle/vertex/uv data
+    o_vertexData.reserve(m_triangles.size() * 8);
+    for(auto t : m_triangles)
+    {
+        listAdd(m_mspts[t.a].pos(), vNorms[t.a], t.uva);
+        listAdd(m_mspts[t.b].pos(), vNorms[t.b], t.uvb);
+        listAdd(m_mspts[t.c].pos(), vNorms[t.c], t.uvc);
     }
+//    //pack data in as triangles, do it by row
+//    for(size_t i = 0; i < (m_height - 1); ++i)
+//    {
+//        for(size_t j = 0; j < (m_width -1); ++j)
+//        {
+//            // Acquire current id number
+//            size_t id = j + (i * m_width);
+//            id += m_width;
+//            // triangle 1
+//            o_vertexData.push_back(m_mspts[id].pos());
+//            o_vertexData.push_back(m_mspts[id - m_width].pos());
+//            o_vertexData.push_back(m_mspts[id - m_width + 1].pos());
+//            // triangle 2
+//            o_vertexData.push_back(m_mspts[id].pos());
+//            o_vertexData.push_back(m_mspts[id - m_width + 1].pos());
+//            o_vertexData.push_back(m_mspts[id + 1].pos());
+//        }
+//    }
 }
 
 void Cloth::modVertFromTriNum(const size_t _triNum, std::vector<ngl::Vec3> _v)

@@ -16,9 +16,9 @@ NGLScene::NGLScene()
     // Create cloth
     m_cloth = Cloth(1.0f, 720.0f, 720.0f, m_collisionOn);
     m_cloth.init(20, 20, 0.4f, 0.0f, true);
-    m_cloth.reposToOrigin(5.0f);
+    m_cloth.reposToOrigin(0.0f);
     m_cloth.fixptHang();
-    m_writeOutCloth = true;
+    m_writeOutCloth = false;
     // Create Sphere
     m_sphere = SphereObj(4.0f, 40);
     m_sphere.init();
@@ -62,7 +62,7 @@ void NGLScene::timerEvent(QTimerEvent *_event)
             m_cloth.writeToObj(filename);
         }
         // update cloth
-        m_cloth.update(0.5f, true);
+        m_cloth.update(0.5f, false);
         // collisions
         if(m_collisionOn)
         {
@@ -90,17 +90,28 @@ void NGLScene::initializeGL()
     // be done once we have a valid GL context but before we call any GL commands. If we dont do
     // this everything will crash
     ngl::NGLInit::instance();
-    glClearColor(0.6f, 0.6f, 0.6f, 1.0f);			   // Grey Background
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);			   // Grey Background
     // enable depth testing for drawing
     glEnable(GL_DEPTH_TEST);
     // enable multisampling for smoother drawing
     glEnable(GL_MULTISAMPLE);
     // load shaders
     ngl::ShaderLib *shader = ngl::ShaderLib::instance();
-    shader->loadShader(ColorShader, "shaders/ColorVertex.glsl",
-                     "shaders/ColorFragment.glsl");
+//    shader->loadShader(ColorShader, "shaders/ColorVertex.glsl",
+//                     "shaders/ColorFragment.glsl");
+
     //set the camera
-    m_view = ngl::lookAt({0.0f, 20.0f, 20.0f}, ngl::Vec3::zero(), ngl::Vec3::up());
+    ngl::Vec3 from(0.0f, 10.0f, 20.0f);
+    m_view = ngl::lookAt(from, ngl::Vec3::zero(), ngl::Vec3::up());
+
+    // ngl checker shader
+    shader->use(ngl::nglCheckerShader);
+    shader->setUniform("lightDiffuse",1.0f,1.0f,1.0f,1.0f);
+    shader->setUniform("checkOn",true);
+    shader->setUniform("lightPos",from);
+    shader->setUniform("colour1",0.9f,0.9f,0.9f,1.0f);
+    shader->setUniform("colour2",0.6f,0.6f,0.6f,1.0f);
+    shader->setUniform("checkSize",15.0f);
 
     //make a simple vao for the cloth triangles
     m_clothVAO = ngl::VAOFactory::createVAO(ngl::simpleVAO, GL_TRIANGLES);
@@ -122,16 +133,19 @@ void NGLScene::paintGL()
     rotx.rotateX(m_win.spinXFace);
     roty.rotateY(m_win.spinYFace);
     mouseRotation = roty * rotx;
-    // draw the cloth
-    std::vector<ngl::Vec3> tri;
+    // draw the cloth    
+    std::vector<float> tri;
     m_cloth.exportTriangles(tri);
 
     m_clothVAO->bind();
-    m_clothVAO->setData(ngl::SimpleVAO::VertexData(tri.size()*sizeof(ngl::Vec3),
-                                            tri[0].m_x));
-    m_clothVAO->setVertexAttributePointer(0, 3, GL_FLOAT, sizeof(ngl::Vec3), 0);
-    m_clothVAO->setNumIndices(tri.size());
-    loadMatrixToShader(mouseRotation, ngl::Vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    m_clothVAO->setData(ngl::SimpleVAO::VertexData(tri.size()*sizeof(float), tri[0]));
+    m_clothVAO->setVertexAttributePointer(0, 3, GL_FLOAT, 8*sizeof(float), 0);
+    m_clothVAO->setVertexAttributePointer(1, 3, GL_FLOAT, 8*sizeof(float), 3);
+    m_clothVAO->setVertexAttributePointer(2, 2, GL_FLOAT, 8*sizeof(float), 6);
+
+    m_clothVAO->setNumIndices((tri.size()/8)*3);
+    loadMatrixToCheckerShader(mouseRotation);
+
     m_clothVAO->draw();
     m_clothVAO->unbind();
     // draw the sphere
@@ -156,6 +170,17 @@ void NGLScene::loadMatrixToShader(const ngl::Mat4 &_tx, const ngl::Vec4 &_color)
     shader->use(ColorShader);
     shader->setUniform("MVP", m_project * m_view * _tx);
     shader->setUniform("vertColor", _color);
+}
+
+void NGLScene::loadMatrixToCheckerShader(const ngl::Mat4 &_tx)
+{
+    ngl::ShaderLib* shader = ngl::ShaderLib::instance();
+    shader->use(ngl::nglCheckerShader);
+    ngl::Mat4 MVP= m_project * m_view * _tx;
+    ngl::Mat3 normalMatrix= m_view * _tx;
+    normalMatrix.inverse().transpose();
+    shader->setUniform("MVP",MVP);
+    shader->setUniform("normalMatrix",normalMatrix);
 }
 
 void NGLScene::collisionResponse(ColDetectInfo _cdi)

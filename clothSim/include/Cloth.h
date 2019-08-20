@@ -176,7 +176,7 @@ public:
     /// @brief exports triangle information of this cloth, for purposes of drawing and setting up bounding volumes
     /// @param[out]  o_vertexData the triangle vertex data of this cloth
     //----------------------------------------------------------------------------------------------------------------------
-    void exportTriangles(std::vector<ngl::Vec3> &o_vertexData);
+    void exportTriangles(std::vector<float> &o_vertexData);
     //----------------------------------------------------------------------------------------------------------------------
     /// @brief detects if this cloth is colliding with another scene element
     /// @param[in]  _eTree the bounding volume tree of another scene element

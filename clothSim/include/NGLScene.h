@@ -110,6 +110,7 @@ private:
     std::unique_ptr<ngl::AbstractVAO> m_sphereVAO;
     /// load matrix to shader
     void loadMatrixToShader(const ngl::Mat4 &_tx, const ngl::Vec4 &_color);
+    void loadMatrixToCheckerShader(const ngl::Mat4 &_tx);
     /// Respond to detected collisions
     void collisionResponse(ColDetectInfo _cdi);
     void collisionResponseFail(ColDetectInfo _cdi);

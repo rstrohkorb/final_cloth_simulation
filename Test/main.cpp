@@ -90,7 +90,7 @@ TEST(BVTree,init)
     Cloth c(1.0f, 1.0f, 1.0f);
     c.init(3, 4, 0.4f);
     std::vector<ngl::Vec3> vertexData;
-    c.exportTriangles(vertexData);
+    //c.exportTriangles(vertexData);
     BVTree bv;
     bv.init(vertexData);
     EXPECT_TRUE(bv.numSurfaces() == 12);
@@ -125,13 +125,13 @@ TEST(BVTree,detectCollision)
     c.init(20, 20, 0.5f, 0.0f);
     c.reposToOrigin(6.0f);
     std::vector<ngl::Vec3> clothvdata;
-    c.exportTriangles(clothvdata);
+    //c.exportTriangles(clothvdata);
     BVTree bvcloth;
     bvcloth.init(clothvdata);
     EXPECT_FALSE(bv1.detectCollision(bvcloth).detected);
     c.reposToOrigin(4.0f);
     clothvdata.clear();
-    c.exportTriangles(clothvdata);
+    //c.exportTriangles(clothvdata);
     BVTree bvcloth2;
     bvcloth2.init(clothvdata);
     EXPECT_TRUE(bv1.detectCollision(bvcloth2).detected);
@@ -263,6 +263,6 @@ TEST(Cloth,exportTriangles)
     Cloth c(1.0f, 1.0f, 1.0f);
     c.init(3, 4, 1.0f, 0.0f);
     std::vector<ngl::Vec3> tri;
-    c.exportTriangles(tri);
+    //c.exportTriangles(tri);
     EXPECT_TRUE(tri.size() == 36);
 }
